@@ -90,7 +90,6 @@ async def escolher_idioma(update: Update, context: ContextTypes.DEFAULT_TYPE):
     idioma = query.data.split("_")[1]  # en, pt, es
     context.user_data["idioma"] = idioma
 
-    # Registrar que o usuário entrou e escolheu idioma
     registrar_acao(query.from_user, idioma, "Escolheu idioma")
 
     msg = mensagens[idioma]["bemvindo"]
@@ -113,11 +112,17 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown"
         )
     elif query.data == "investir":
-        await query.edit_message_text("💵 *Digite o valor que pretende investir (ex.: 500 USD)*", parse_mode="Markdown")
+        # Frases multilíngues com faixa de investimento
+        frases_investir = {
+            "pt": "💵 *Digite o valor que pretende investir (mínimo 1.000 USD e máximo 5.000 USD)*\nExemplo: 1500",
+            "en": "💵 *Enter the amount you want to invest (minimum 1,000 USD and maximum 5,000 USD)*\nExample: 1500",
+            "es": "💵 *Ingrese el monto que desea invertir (mínimo 1.000 USD y máximo 5.000 USD)*\nEjemplo: 1500"
+        }
+        texto_investir = frases_investir.get(idioma, frases_investir["en"])
+        await query.edit_message_text(texto_investir, parse_mode="Markdown")
         context.user_data['esperando_valor'] = True
     elif query.data == "comprar":
         registrar_acao(query.from_user, idioma, "Clicou Como Comprar")
-        # Mostra versão curta no idioma escolhido (ou inglês padrão)
         texto_comprar = mensagens.get(idioma, mensagens["en"])["como_comprar"]
         await query.edit_message_text(texto_comprar, parse_mode="Markdown")
 
