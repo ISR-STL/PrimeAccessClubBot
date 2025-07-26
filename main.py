@@ -1,35 +1,75 @@
+import datetime
+import os
+import threading
+from flask import Flask
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
-import logging
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    CallbackQueryHandler,
+    MessageHandler,
+    ContextTypes,
+    filters
+)
 
-# Ativar logs para ver no Railway
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-logger = logging.getLogger(__name__)
+# ==== CONFIGURAÇÕES ====
+BOT_TOKEN = "8391268031:AAFbXEi13Zuo6KeExxi21Z2f3fRt9eb5lso"  # TOKEN SOBYEN
 
-BOT_TOKEN = "8391268031:AAFbXEi13Zuo6KeExxi21Z2f3fRt9eb5lso"
+# URL da planilha SoByen
+PLANILHA_NOME = "Investidores_Interessados"  # Deve ser igual ao nome exato da planilha
 
-FORMS_LINK = "https://forms.gle/5sJNUBMTusfRfxqSA"
+# Configuração Google Sheets
+SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+CREDS = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", SCOPE)
+CLIENT = gspread.authorize(CREDS)
+SHEET = CLIENT.open(PLANILHA_NOME).sheet1
 
-message_pt = f"""
-🚨 **PRÉ-VENDA EXPRESS – SOMENTE 48 HORAS!** 🚨
+# ==== FLASK PARA O RAILWAY ====
+flask_app = Flask(__name__)
 
-🔥 SoByen (SBN) – Token do agronegócio digital com escassez programada  
+@flask_app.route("/")
+def home():
+    return "✅ SoByen Bot está rodando no Railway!"
 
-✅ Pré-venda: US$ 0,01  
-✅ Listagem: US$ 0,02 (lucro imediato 100%)  
-✅ Compra mínima: US$ 5 | Máxima: US$ 1.000  
+# ==== MENSAGENS ====
+message_pt = """
+🚨 *PRÉ-VENDA EXPRESS – SOMENTE 48 HORAS!* 🚨
+
+🔥 *SoByen (SBN)* – Token do agronegócio digital com escassez programada  
+
+✅ Pré-venda: **US$ 0,01**  
+✅ Listagem: **US$ 0,02 (lucro imediato 100%)**  
+✅ Compra mínima: **US$ 5 | Máxima: US$ 1.000**  
 ✅ Pagamento: BNB (Rede BSC)
 
-💳 **Carteira oficial:**  
+💳 Carteira oficial:
 `0x0d5B9634F1C33684C9d2606109B391301b95f002`
 
-⏳ Apenas 48h! Liquidez travada 12 meses  
-👉 **Whitelist (limitada aos 500 primeiros):**  
-[{FORMS_LINK}]({FORMS_LINK})
+⏳ Apenas 48h! Liquidez travada 12 meses
+👉 Whitelist (limitada aos 500 primeiros):
+https://docs.google.com/forms/d/e/1FAIpQLSfSBNForm/viewform
+"""
+
+message_en = """
+🔥 *SoByen (SBN)* – Digital agribusiness token with programmed scarcity  
+
+✅ Pre-sale: **US$ 0.01**  
+✅ Listing: **US$ 0.02 (instant 100% profit)**  
+✅ Min: **US$ 5 | Max: US$ 1,000**  
+✅ Payment: BNB (BSC Network)
+
+💳 Official wallet:
+`0x0d5B9634F1C33684C9d2606109B391301b95f002`
+
+⏳ Only 48h! Liquidity locked for 12 months
+👉 Whitelist (limited to first 500 users):
+https://docs.google.com/forms/d/e/1FAIpQLSfSBNForm/viewform
 """
 
 status_msg = """
-📊 **Status da Pré-venda SBN**
+📊 *Status da Pré-venda SBN*
 ✅ Preço atual: **US$ 0,01**
 ✅ Próximo preço: **US$ 0,02**
 ✅ Duração: Apenas **48h**
@@ -37,74 +77,89 @@ status_msg = """
 ⏳ Restante: **tempo limitado**
 """
 
-outras_ofertas_msg = """
-💼 **Outras oportunidades AgroDigital**  
+outras_ofertas = """
+📊 *Outras oportunidades disponíveis:*
+✅ Tokens agrícolas em pré-venda
+✅ Projetos de energia sustentável
+✅ Investimentos tokenizados em commodities
 
-✅ Tokens de novos projetos  
-✅ Pré-vendas exclusivas com bônus  
-✅ Investimentos em ecossistema sustentável  
-
-Se tiver interesse, clique no botão *Quero investir* e informe o valor que pretende alocar.
+👉 Em breve enviaremos mais detalhes!
 """
 
-# Estado para armazenar quem está respondendo o valor
-user_state = {}
+# Estado para capturar investimento
+user_invest_step = {}
 
+# ==== FUNÇÕES ====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logger.info(f"/start recebido de {update.effective_user.username}")
-
     keyboard = [
         [InlineKeyboardButton("✅ Como comprar (PT)", callback_data='pt')],
         [InlineKeyboardButton("🌍 How to buy (EN)", callback_data='en')],
         [InlineKeyboardButton("📈 Status da pré-venda", callback_data='status')],
-        [InlineKeyboardButton("📝 Entrar na Whitelist", url=FORMS_LINK)],
-        [InlineKeyboardButton("💼 Outras ofertas", callback_data='ofertas')],
-        [InlineKeyboardButton("💰 Quero investir", callback_data='investir')]
+        [InlineKeyboardButton("📊 Outras oportunidades", callback_data='outras')],
+        [InlineKeyboardButton("💰 Informar valor de investimento", callback_data='invest')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-
-    await update.message.reply_text(
-        "✅ *AgroDigital Bot ativo!* Escolha uma opção abaixo:",
-        reply_markup=reply_markup,
-        parse_mode="Markdown"
-    )
+    await update.message.reply_text("✅ *SoByen Bot ativo!* Escolha uma opção abaixo:", reply_markup=reply_markup, parse_mode="Markdown")
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    user = query.from_user
 
     if query.data == 'pt':
         await query.edit_message_text(text=message_pt, parse_mode="Markdown")
+        salvar_lead(user, idioma="PT")
     elif query.data == 'en':
-        await query.edit_message_text(text="🌍 *Soon in English!*", parse_mode="Markdown")
+        await query.edit_message_text(text=message_en, parse_mode="Markdown")
+        salvar_lead(user, idioma="EN")
     elif query.data == 'status':
         await query.edit_message_text(text=status_msg, parse_mode="Markdown")
-    elif query.data == 'ofertas':
-        await query.edit_message_text(text=outras_ofertas_msg, parse_mode="Markdown")
-    elif query.data == 'investir':
-        # Muda o estado do usuário para coletar valor
-        user_state[query.from_user.id] = "waiting_investment"
-        await query.message.reply_text("💰 *Qual valor você pretende investir?* (ex: 100, 500, 1000 USD)")
+    elif query.data == 'outras':
+        await query.edit_message_text(text=outras_ofertas, parse_mode="Markdown")
+    elif query.data == 'invest':
+        await query.message.reply_text("💰 *Digite o valor que deseja investir:*", parse_mode="Markdown")
+        user_invest_step[user.id] = True
 
-async def coletar_valor(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-
-    if user_state.get(user_id) == "waiting_investment":
+async def registrar_investimento(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    if user.id in user_invest_step and user_invest_step[user.id]:
         valor = update.message.text
-        logger.info(f"Usuário {update.effective_user.username} quer investir: {valor}")
-        await update.message.reply_text(f"✅ Recebemos sua intenção de investir *US$ {valor}*! Nossa equipe entrará em contato.")
-        # Depois de coletar o valor, reseta o estado
-        user_state.pop(user_id)
+        salvar_investimento(user, valor)
+        await update.message.reply_text(f"✅ Registrado! Você informou **{valor}** como valor de investimento.", parse_mode="Markdown")
+        del user_invest_step[user.id]
 
-def main():
+# ==== FUNÇÕES GOOGLE SHEETS ====
+def salvar_lead(user, idioma):
+    SHEET.append_row([
+        user.full_name,
+        f"@{user.username}" if user.username else "Sem username",
+        idioma,
+        "-",
+        datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+    ])
+
+def salvar_investimento(user, valor):
+    SHEET.append_row([
+        user.full_name,
+        f"@{user.username}" if user.username else "Sem username",
+        "Investimento direto",
+        valor,
+        datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+    ])
+
+# ==== RODAR TELEGRAM BOT + FLASK PARA RAILWAY ====
+def run_telegram():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_callback))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, coletar_valor))  # captura valores
-
-    logger.info("🤖 BOT ONLINE - aguardando comandos...")
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, registrar_investimento))
+    print("🤖 BOT SoByen ONLINE e integrado ao Google Sheets!")
     app.run_polling()
 
+def run_flask():
+    port = int(os.environ.get("PORT", 5000))
+    flask_app.run(host="0.0.0.0", port=port)
+
 if __name__ == "__main__":
-    main()
+    threading.Thread(target=run_telegram).start()
+    run_flask()
