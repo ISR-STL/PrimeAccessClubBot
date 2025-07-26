@@ -1,21 +1,16 @@
 import os
 from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    CallbackQueryHandler,
-    ContextTypes,
-)
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
-# Token do bot e URL do Railway
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8046727069:AAF6wzLZycKZSYOCkx-TJLSkIjRzq7M0a9I")
-RAILWAY_URL = os.getenv("RAILWAY_URL", "https://sunny-surprise-production-a29a.up.railway.app")  # seu domínio
+# Pega variáveis do Railway
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+RAILWAY_PUBLIC_DOMAIN = os.getenv("RAILWAY_PUBLIC_DOMAIN")
 
-# Cria o Flask para manter Railway ativo
-flask_app = Flask(__name__)
+# Monta URL do webhook
+WEBHOOK_URL = f"https://{RAILWAY_PUBLIC_DOMAIN}/{BOT_TOKEN}"
 
-# Mensagens do bot
+# Mensagens
 message_pt = """
 🚨 PRÉ-VENDA EXPRESS – SOMENTE 48 HORAS! 🚨
 
@@ -61,10 +56,7 @@ status_msg = """
 ⏳ Restante: **tempo limitado**
 """
 
-# Cria app do telegram
-application = Application.builder().token(BOT_TOKEN).build()
-
-# Comando inicial
+# Handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("✅ Como comprar (PT)", callback_data='pt')],
@@ -72,9 +64,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📈 Status da pré-venda", callback_data='status')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("✅ Bot ativo! Escolha uma opção abaixo:", reply_markup=reply_markup)
+    await update.message.reply_text(
+        "✅ Bot ativo! Escolha uma opção abaixo:",
+        reply_markup=reply_markup
+    )
 
-# Callback dos botões
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -86,29 +80,26 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == 'status':
         await query.edit_message_text(text=status_msg)
 
-# Adiciona handlers
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CallbackQueryHandler(button_callback))
+# Flask para manter Railway ativo
+flask_app = Flask(__name__)
 
-# Rota raiz para teste
-@flask_app.route('/')
+@flask_app.route("/")
 def home():
     return "✅ Bot está rodando no Railway!"
 
-# Rota para receber atualizações do Telegram
-@flask_app.route(f'/{BOT_TOKEN}', methods=['POST'])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    application.update_queue.put_nowait(update)
-    return "OK", 200
+def main():
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-def setup_webhook():
-    webhook_url = f"{RAILWAY_URL}/{BOT_TOKEN}"
-    application.bot.set_webhook(url=webhook_url)
-    print(f"✅ Webhook configurado: {webhook_url}")
+    # Adiciona handlers
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button_callback))
+
+    # Configura webhook
+    app.bot.set_webhook(WEBHOOK_URL)
+
+    # Inicia Flask para manter vivo
+    port = int(os.environ.get("PORT", 5000))
+    flask_app.run(host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
-    # Configura webhook
-    setup_webhook()
-    # Inicia Flask
-    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    main()
