@@ -1,85 +1,114 @@
 import os
-import asyncio
-import random
-import threading
-from flask import Flask
-from telegram import Update, ChatMemberUpdated
+from flask import Flask, request
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    ApplicationBuilder,
+    Application,
     CommandHandler,
+    CallbackQueryHandler,
     ContextTypes,
-    ChatMemberHandler
 )
 
-BOT_TOKEN = "8046727069:AAF6wzLZycKZSYOCkx-TJLSkIjRzq7M0a9I"
-GROUP_ID = -4823572709
-INTERVALO_ENVIO = 3600
+# Token do bot e URL do Railway
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8046727069:AAF6wzLZycKZSYOCkx-TJLSkIjRzq7M0a9I")
+RAILWAY_URL = os.getenv("RAILWAY_URL", "https://sunny-surprise-production-a29a.up.railway.app")  # seu domínio
 
-MENSAGENS = [
-    "🚀 *Atenção!* Uma oportunidade única no mercado digital está aberta apenas para quem está neste grupo. 🔥 Quer entrar antes de todo mundo?",
-    "💎 *Lista Premium aberta!* As primeiras vagas garantem benefícios exclusivos. Você vai perder essa chance?",
-    "✅ *Investidores inteligentes* já estão garantindo acesso antecipado. Entre agora para não ficar de fora!",
-    "📊 O mercado está aquecendo e *quem chegar primeiro leva as maiores vantagens*. Clique no link fixado e participe!",
-    "🔥 *Oferta relâmpago!* Somente os membros deste grupo têm prioridade. Garanta seu lugar AGORA!",
-    "🌟 Você está a um passo de fazer parte de algo *exclusivo e lucrativo*. Quer saber mais? Fique ligado!",
-    "🔒 *Acesso limitado!* Só quem está aqui vai receber os próximos detalhes. Prepare-se para o melhor!",
-    "📈 Oportunidades como essa não aparecem duas vezes… *quem decide rápido, colhe primeiro!*",
-]
-
-# --- BOT ---
-async def gerar_mensagem_en():
-    return random.choice(MENSAGENS)
-
-async def envio_automatico(context: ContextTypes.DEFAULT_TYPE):
-    msg = await gerar_mensagem_en()
-    await context.bot.send_message(
-        chat_id=GROUP_ID,
-        text=msg,
-        parse_mode="Markdown",
-        disable_web_page_preview=True
-    )
-
-async def start_auto_posting(application):
-    job_queue = application.job_queue
-    job_queue.run_repeating(envio_automatico, interval=INTERVALO_ENVIO, first=10)
-
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "✅ Olá! Eu sou o *PrimeAccessClub Bot*.\n"
-        "Estou ativo e pronto para enviar *oportunidades exclusivas* neste grupo! 🚀",
-        parse_mode="Markdown"
-    )
-
-async def boas_vindas(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    status_atual = update.my_chat_member.new_chat_member.status
-    if status_atual == "member":
-        await update.effective_chat.send_message(
-            "👋 Olá! Fui ativado neste grupo para compartilhar *oportunidades premium e exclusivas!* 🔥\n"
-            "Fique atento para não perder nada!"
-        )
-
-def run_bot():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(ChatMemberHandler(boas_vindas, ChatMemberHandler.MY_CHAT_MEMBER))
-    app.post_init(lambda _: asyncio.create_task(start_auto_posting(app)))
-
-    print("✅ BOT ONLINE com mensagens premium automáticas!")
-    app.run_polling()
-
-# --- FLASK ---
+# Cria o Flask para manter Railway ativo
 flask_app = Flask(__name__)
 
+# Mensagens do bot
+message_pt = """
+🚨 PRÉ-VENDA EXPRESS – SOMENTE 48 HORAS! 🚨
+
+🔥 SoByen (SBN) – Token do agronegócio digital com escassez programada  
+
+✅ Pré-venda: US$ 0,01  
+✅ Listagem: US$ 0,02 (lucro imediato 100%)  
+✅ Compra mínima: US$ 5 | Máxima: US$ 1.000  
+✅ Pagamento: BNB (Rede BSC)
+
+💳 Carteira oficial:
+0x0d5B9634F1C33684C9d2606109B391301b95f002
+
+⏳ Apenas 48h! Liquidez travada 12 meses
+👉 Whitelist (limitada aos 500 primeiros):
+https://forms.gle/5sJNUBMTusfRfxqSA
+"""
+
+message_en = """
+🚨 FLASH PRE-SALE – ONLY 48 HOURS! 🚨
+
+🔥 SoByen (SBN) – The digital agribusiness token with programmed scarcity  
+
+✅ Pre-sale: US$ 0.01  
+✅ Listing: US$ 0.02 (instant 100% profit)  
+✅ Min: US$ 5 | Max: US$ 1,000  
+✅ Payment: BNB (BSC Network)
+
+💳 Official wallet:
+0x0d5B9634F1C33684C9d2606109B391301b95f002
+
+⏳ Only 48h! Liquidity locked for 12 months
+👉 Whitelist (limited to first 500 users):
+https://forms.gle/5sJNUBMTusfRfxqSA
+"""
+
+status_msg = """
+📊 **Status da Pré-venda SBN**
+✅ Preço atual: **US$ 0,01**
+✅ Próximo preço: **US$ 0,02**
+✅ Duração: Apenas **48h**
+✅ Vagas whitelist: **500 primeiras pessoas**
+⏳ Restante: **tempo limitado**
+"""
+
+# Cria app do telegram
+application = Application.builder().token(BOT_TOKEN).build()
+
+# Comando inicial
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("✅ Como comprar (PT)", callback_data='pt')],
+        [InlineKeyboardButton("🌍 How to buy (EN)", callback_data='en')],
+        [InlineKeyboardButton("📈 Status da pré-venda", callback_data='status')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("✅ Bot ativo! Escolha uma opção abaixo:", reply_markup=reply_markup)
+
+# Callback dos botões
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == 'pt':
+        await query.edit_message_text(text=message_pt)
+    elif query.data == 'en':
+        await query.edit_message_text(text=message_en)
+    elif query.data == 'status':
+        await query.edit_message_text(text=status_msg)
+
+# Adiciona handlers
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CallbackQueryHandler(button_callback))
+
+# Rota raiz para teste
 @flask_app.route('/')
 def home():
     return "✅ Bot está rodando no Railway!"
 
-def run_flask():
-    port = int(os.environ.get("PORT", 5000))
-    flask_app.run(host="0.0.0.0", port=port)
+# Rota para receber atualizações do Telegram
+@flask_app.route(f'/{BOT_TOKEN}', methods=['POST'])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    application.update_queue.put_nowait(update)
+    return "OK", 200
 
-# --- MAIN ---
+def setup_webhook():
+    webhook_url = f"{RAILWAY_URL}/{BOT_TOKEN}"
+    application.bot.set_webhook(url=webhook_url)
+    print(f"✅ Webhook configurado: {webhook_url}")
+
 if __name__ == "__main__":
-    threading.Thread(target=run_flask).start()
-    run_bot()
+    # Configura webhook
+    setup_webhook()
+    # Inicia Flask
+    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
