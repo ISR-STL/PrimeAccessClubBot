@@ -1,5 +1,6 @@
 import asyncio
 import random
+import os
 import threading
 from flask import Flask
 from telegram import Update, ChatMemberUpdated
@@ -11,13 +12,13 @@ from telegram.ext import (
 )
 
 # --- Configurações do BOT ---
-BOT_TOKEN = "SEU_TOKEN_AQUI"
+BOT_TOKEN = "8046727069:AAF6wzLZycKZSYOCkx-TJLSkIjRzq7M0a9I"
 GROUP_ID = -4823572709
 INTERVALO_ENVIO = 3600  # intervalo em segundos (1 hora)
 
-# --- Lista de mensagens premium ---
+# --- Lista de mensagens premium para engajar ---
 MENSAGENS = [
-    "🚀 *Atenção!* Uma oportunidade única no mercado digital está aberta apenas para quem está neste grupo. 🔥",
+    "🚀 *Atenção!* Uma oportunidade única no mercado digital está aberta apenas para quem está neste grupo. 🔥 Quer entrar antes de todo mundo?",
     "💎 *Lista Premium aberta!* As primeiras vagas garantem benefícios exclusivos. Você vai perder essa chance?",
     "✅ *Investidores inteligentes* já estão garantindo acesso antecipado. Entre agora para não ficar de fora!",
     "📊 O mercado está aquecendo e *quem chegar primeiro leva as maiores vantagens*. Clique no link fixado e participe!",
@@ -51,6 +52,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
+# --- Mensagem de boas-vindas ao ser adicionado no grupo ---
 async def boas_vindas(update: Update, context: ContextTypes.DEFAULT_TYPE):
     status_atual = update.my_chat_member.new_chat_member.status
     if status_atual == "member":
@@ -59,20 +61,22 @@ async def boas_vindas(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Fique atento para não perder nada!"
         )
 
-def start_bot():
-    asyncio.run(run_bot())
-
-async def run_bot():
+def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
+    # Comando manual para ativar
     app.add_handler(CommandHandler("start", start_command))
+
+    # Boas-vindas quando o bot for adicionado ao grupo
     app.add_handler(ChatMemberHandler(boas_vindas, ChatMemberHandler.MY_CHAT_MEMBER))
+
+    # Iniciar envio automático
     app.post_init(lambda _: asyncio.create_task(start_auto_posting(app)))
 
     print("✅ BOT ONLINE com mensagens premium automáticas!")
-    await app.run_polling()
+    app.run_polling()
 
-# --- Flask para manter Railway ativo ---
+# --- Servidor Flask para manter Railway ativo ---
 flask_app = Flask(__name__)
 
 @flask_app.route('/')
@@ -80,8 +84,9 @@ def home():
     return "✅ Bot está rodando no Railway!"
 
 if __name__ == "__main__":
-    # Inicia o BOT em paralelo
-    threading.Thread(target=start_bot).start()
-    
-    # Inicia o Flask como processo principal para Railway
-    flask_app.run(host="0.0.0.0", port=5000)
+    # Usa a porta dinâmica fornecida pelo Railway
+    port = int(os.environ.get("PORT", 5000))
+    threading.Thread(target=lambda: flask_app.run(host="0.0.0.0", port=port)).start()
+
+    # Executa o bot
+    main()
