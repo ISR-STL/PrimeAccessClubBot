@@ -4,8 +4,8 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # --- Configurações do BOT ---
-BOT_TOKEN = "SEU_TOKEN_AQUI"
-GROUP_ID = "ID_DO_GRUPO_AQUI"
+BOT_TOKEN = "COLOQUE_SEU_TOKEN_AQUI"
+GROUP_ID = "COLOQUE_O_ID_DO_GRUPO_AQUI"
 INTERVALO_ENVIO = 3600  # intervalo em segundos
 
 # --- Funções do Bot ---
@@ -38,16 +38,16 @@ def main():
     app.run_polling()
 
 # --- Servidor Flask para manter Railway ativo ---
-flask_app = Flask(__name__)
+flask_app = Flask(_name_)
 
 @flask_app.route('/')
 def home():
-    return "🤖 Bot está rodando no Railway!"
+    return "✅ Bot está rodando no Railway!"
 
-if __name__ == "__main__":
+if _name_ == "_main_":
     # Executa Flask em paralelo
     import threading
     threading.Thread(target=lambda: flask_app.run(host="0.0.0.0", port=5000)).start()
-    
+
     # Executa o bot
     main()
