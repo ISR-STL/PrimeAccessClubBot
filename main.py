@@ -1,84 +1,59 @@
+import datetime
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
-BOT_TOKEN = "SEU_TOKEN_AQUI"
+BOT_TOKEN = "8391268031:AAFbXEi13Zuo6KeExxi21Z2f3fRt9eb5lso"
 
-# Link do Google Forms
-FORM_LINK = "https://forms.gle/zVJN3BBuZgzCcGB36"
+# Nome da planilha
+PLANILHA_URL = "https://docs.google.com/spreadsheets/d/1iHuIhFXV4JqZG5XIn_GfbeZJXewR0rWg7SgLD5F_Lfk/edit?usp=sharing"
 
-# Mensagem principal
-message_pt = f"""
-🚀 *Pré-venda SoByen (SBN)*
+def conectar_planilha():
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+    client = gspread.authorize(creds)
+    sheet = client.open_by_url(PLANILHA_URL).sheet1
+    return sheet
 
-✅ Preço pré-venda: **US$ 0,01**
-✅ Lucro imediato: **+100%**
-✅ Pagamento via **BNB (Rede BSC)**
-
-📌 **Quer prioridade antes que acabe?**
-👉 [Clique aqui para entrar na Whitelist]({FORM_LINK})
-"""
-
-status_msg = """
-📊 **Status da Pré-venda SBN**
-✅ Preço atual: **US$ 0,01**
-✅ Próximo preço: **US$ 0,02**
-✅ Duração: Apenas **48h**
-✅ Vagas whitelist: **500 primeiras pessoas**
-⏳ Restante: **tempo limitado**
-"""
-
-# Comando inicial com botões
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("✅ Como comprar (PT)", callback_data='pt')],
         [InlineKeyboardButton("🌍 How to buy (EN)", callback_data='en')],
         [InlineKeyboardButton("📈 Status da pré-venda", callback_data='status')],
-        [InlineKeyboardButton("💼 Ver outras ofertas", callback_data='offers')],
-        [InlineKeyboardButton("💰 Informar valor que deseja investir", callback_data='invest')]
+        [InlineKeyboardButton("💼 Ver outras ofertas", callback_data='outros')],
+        [InlineKeyboardButton("💰 Informar valor que deseja investir", callback_data='investir')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(
-        "✅ Bot ativo! Escolha uma opção abaixo:",
-        reply_markup=reply_markup
-    )
+    await update.message.reply_text("✅ Bot ativo! Escolha uma opção abaixo:", reply_markup=reply_markup)
 
-# Resposta aos botões
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    if query.data == 'investir':
+        await query.edit_message_text("💵 *Digite o valor que pretende investir (ex.: 500 USD)*", parse_mode="Markdown")
+        context.user_data['esperando_valor'] = True
 
-    if query.data == 'pt':
-        await query.edit_message_text(
-            text=message_pt,
-            parse_mode="Markdown",
-            disable_web_page_preview=True  # ✅ REMOVE o preview poluído
-        )
-    elif query.data == 'status':
-        await query.edit_message_text(
-            text=status_msg,
-            parse_mode="Markdown",
-            disable_web_page_preview=True
-        )
-    elif query.data == 'offers':
-        await query.edit_message_text(
-            "📌 *Temos outras oportunidades de investimento!*\nEm breve enviaremos mais detalhes.",
-            parse_mode="Markdown",
-            disable_web_page_preview=True
-        )
-    elif query.data == 'invest':
-        await query.edit_message_text(
-            "💰 *Informe o valor que deseja investir e nossa equipe entrará em contato.*",
-            parse_mode="Markdown",
-            disable_web_page_preview=True
-        )
+async def registrar_investimento(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if context.user_data.get('esperando_valor'):
+        valor = update.message.text
+        user = update.message.from_user
+        sheet = conectar_planilha()
+        sheet.append_row([
+            user.full_name,
+            f"@{user.username}" if user.username else "Sem username",
+            valor,
+            datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+        ])
+        await update.message.reply_text(f"✅ Investimento *{valor}* registrado com sucesso!", parse_mode="Markdown")
+        context.user_data['esperando_valor'] = False
 
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_callback))
-
-    print("✅ BOT ONLINE - aguardando comandos...")
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, registrar_investimento))
+    print("✅ BOT ONLINE com integração segura ao Google Sheets!")
     app.run_polling()
 
 if __name__ == "__main__":
