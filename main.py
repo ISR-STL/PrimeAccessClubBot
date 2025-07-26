@@ -41,12 +41,13 @@ def registrar_acao(user, idioma, acao, valor="--"):
 # ==================== MENSAGENS POR IDIOMA ========================
 mensagens = {
     "pt": {
-        "bemvindo": "🌱 Bem-vindo(a) ao *AgroDigital Club*!\n\n🚀 Aqui você encontra oportunidades exclusivas no agronegócio digital com potencial de crescimento global.\n\n💡 *Participe da pré-venda do token SoByen (SBN) e garanta posição estratégica no mercado.*\n\nEscolha uma opção abaixo para continuar 👇",
+        "bemvindo": "🌱 Bem-vindo(a) ao *AgroDigital Club*!\n\n🚀 Aqui você encontra oportunidades exclusivas no agronegócio digital com potencial de crescimento global.\n\n💡 *Participe da pré-venda do token SoByen (SBN) e garanta posição estratégica no mercado.*\n\nEscolha uma opção abaixo 👇",
         "botoes": [
             ("✅ Como comprar", "comprar"),
             ("📄 Abrir formulário", "formulario"),
             ("💰 Informar valor que deseja investir", "investir")
-        ]
+        ],
+        "como_comprar": f"🔥 *3 PASSOS RÁPIDOS PARA GARANTIR SEUS TOKENS SBN!*\n\n✅ 1. Envie **BNB (Rede BSC)** para:\n`0x0d5B9634F1C33684C9d2606109B391301b95f002`\n\n✅ 2. Preencha a whitelist em 30 segundos:\n{GOOGLE_FORMS_URL}\n\n✅ 3. Receba seus tokens automaticamente após o fim da pré-venda.\n\n⏳ *Só 48h e apenas 500 vagas disponíveis!*"
     },
     "en": {
         "bemvindo": "🌍 Welcome to *AgroDigital Club*!\n\n🚀 Here you will find exclusive opportunities in digital agribusiness with global growth potential.\n\n💡 *Join the pre-sale of the SoByen (SBN) token and secure your strategic position in the market.*\n\nChoose an option below 👇",
@@ -54,7 +55,8 @@ mensagens = {
             ("🌍 How to buy", "comprar"),
             ("📄 Open whitelist form", "formulario"),
             ("💰 Enter the amount you want to invest", "investir")
-        ]
+        ],
+        "como_comprar": f"🔥 *3 QUICK STEPS TO GET YOUR SBN TOKENS!*\n\n✅ 1. Send **BNB (BSC Network)** to:\n`0x0d5B9634F1C33684C9d2606109B391301b95f002`\n\n✅ 2. Fill the whitelist (takes 30 sec):\n{GOOGLE_FORMS_URL}\n\n✅ 3. Tokens will be delivered automatically after pre-sale ends.\n\n⏳ *Only 48h and 500 spots available!*"
     },
     "es": {
         "bemvindo": "🌾 ¡Bienvenido(a) a *AgroDigital Club*!\n\n🚀 Aquí encontrará oportunidades exclusivas en el agronegocio digital con potencial de crecimiento global.\n\n💡 *Participe en la preventa del token SoByen (SBN) y asegure una posición estratégica en el mercado.*\n\nSeleccione una opción abajo 👇",
@@ -62,7 +64,8 @@ mensagens = {
             ("✅ Cómo comprar", "comprar"),
             ("📄 Abrir formulario", "formulario"),
             ("💰 Ingresar el monto que desea invertir", "investir")
-        ]
+        ],
+        "como_comprar": f"🔥 *¡3 PASOS RÁPIDOS PARA OBTENER TUS TOKENS SBN!*\n\n✅ 1. Envía **BNB (Red BSC)** a:\n`0x0d5B9634F1C33684C9d2606109B391301b95f002`\n\n✅ 2. Completa la whitelist en 30 segundos:\n{GOOGLE_FORMS_URL}\n\n✅ 3. Recibe tus tokens automáticamente al finalizar la preventa.\n\n⏳ *¡Solo 48h y 500 plazas disponibles!*"
     }
 }
 
@@ -106,7 +109,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "formulario":
         registrar_acao(query.from_user, idioma, "Abriu Formulário")
         await query.edit_message_text(
-            f"📄 *O formulário será aberto em inglês para padronização global.*\n\n{GOOGLE_FORMS_URL}",
+            f"📄 *The form will open in English for global standardization.*\n\n{GOOGLE_FORMS_URL}",
             parse_mode="Markdown"
         )
     elif query.data == "investir":
@@ -114,7 +117,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['esperando_valor'] = True
     elif query.data == "comprar":
         registrar_acao(query.from_user, idioma, "Clicou Como Comprar")
-        await query.edit_message_text("✅ *Em breve enviaremos as instruções detalhadas de compra.*", parse_mode="Markdown")
+        # Mostra versão curta no idioma escolhido (ou inglês padrão)
+        texto_comprar = mensagens.get(idioma, mensagens["en"])["como_comprar"]
+        await query.edit_message_text(texto_comprar, parse_mode="Markdown")
 
 # ==================== REGISTRAR VALOR INVESTIDO ===================
 async def registrar_investimento(update: Update, context: ContextTypes.DEFAULT_TYPE):
